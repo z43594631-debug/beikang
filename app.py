@@ -15,6 +15,7 @@ engine = create_engine(
 )
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
+Base.metadata.creat_all(bind=engine)
 
 app = FastAPI()
 @app.get("/")
@@ -60,7 +61,3 @@ def login(user: UserCreate):
 
     return {"message": "登录成功"}
 
-# ===== 测试 =====
-@app.get("/")
-def root():
-    return {"message": "server running"}
