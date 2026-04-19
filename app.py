@@ -1,69 +1,58 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import pickle
-import numpy as np
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 import os
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.orm import sessionmaker, declarative_base
+
+# 读取数据库地址
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
+Base = declarative_base()
 
 app = FastAPI()
 
-# ✅ 解决跨域
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ===== 数据表 =====
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True)
+    password = Column(String)
 
-# ✅ 加在 import 后面也可以（更清晰）
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(BASE_DIR, "validated_model.pkl")
+# 创建表
+Base.metadata.create_all(bind=engine)
 
-# ✅ 第二步：打印日志（放在加载前）
-print("当前工作目录：", os.getcwd())
-print("模型路径：", model_path)
+# ===== 请求模型 =====
+class UserCreate(BaseModel):
+    username: str
+    password: str
 
-# ✅ 第三步：防止程序崩溃（try 包住加载）
-try:
-    with open(model_path, "rb") as f:
-        data = pickle.load(f)
-    print("模型加载成功 ✅")
-except Exception as e:
-    print("模型加载失败 ❌：", e)
-    data = None
-    
-sub = data["breast_cancer_wisconsin_original"]
+# ===== 注册 =====
+@app.post("/register")
+def register(user: UserCreate):
+    db = SessionLocal()
+    existing = db.query(User).filter(User.username == user.username).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="用户已存在")
 
-while isinstance(sub, dict):
-    if "model" in sub:
-        sub = sub["model"]
-    else:
-        break
+    new_user = User(username=user.username, password=user.password)
+    db.add(new_user)
+    db.commit()
+    return {"message": "注册成功"}
 
-model = sub
+# ===== 登录 =====
+@app.post("/login")
+def login(user: UserCreate):
+    db = SessionLocal()
+    existing = db.query(User).filter(User.username == user.username).first()
 
+    if not existing or existing.password != user.password:
+        raise HTTPException(status_code=401, detail="用户名或密码错误")
 
-# ✅ 测试接口（很重要！）
+    return {"message": "登录成功"}
+
+# ===== 测试 =====
 @app.get("/")
-def home():
-    return {"message": "API running"}
-
-
-# ✅ 预测接口
-@app.post("/predict")
-def predict(data: dict):
-    try:
-        features = np.array(data["features"]).reshape(1, -1)
-        result = model.predict(features)
-
-        return {
-            "success": True,
-            "result": result.tolist()
-        }
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
+def root():
+    return {"message": "server running"}
