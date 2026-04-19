@@ -7,7 +7,12 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 # 读取数据库地址
 DATABASE_URL = os.getenv("DATABASE_URL")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={"connect_timeout":5}
+)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
