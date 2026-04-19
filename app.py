@@ -12,6 +12,9 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 app = FastAPI()
+@app.get("/")
+def root():
+    return {"message": "Backend is running"}
 
 # ===== 数据表 =====
 class User(Base):
